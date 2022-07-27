@@ -1,16 +1,24 @@
 package main
 
+import "time"
+
 type ModbusWiretap struct {
-	RTU         *ModbusRTU
-	TargetSlave byte
+	RTU             *ModbusRTU
+	TargetSlave     byte
+	LastHeardMaster time.Time
+
+	LastReq *ProtocolDataUnit
 }
 
 type WiretapReqResp struct {
 	Req, Resp *ProtocolDataUnit
 }
 
+func (w *ModbusWiretap) SetLastReq(r *ProtocolDataUnit) {
+	w.LastReq = r
+}
+
 func (w *ModbusWiretap) Next() (*WiretapReqResp, error) {
-	var rv WiretapReqResp
 
 	for {
 		pdu, err := w.RTU.ReadPDU()
@@ -30,11 +38,17 @@ func (w *ModbusWiretap) Next() (*WiretapReqResp, error) {
 
 		if len(pdu.Data) == 4 {
 			// Looks like a request
-			rv.Req = &pdu.ProtocolDataUnit
-		} else if rv.Req != nil {
-			if rv.Req.FunctionCode == pdu.FunctionCode {
-				rv.Resp = &pdu.ProtocolDataUnit
-				return &rv, nil
+			w.LastReq = &pdu.ProtocolDataUnit
+			w.LastHeardMaster = time.Now()
+		} else if w.LastReq != nil {
+			if w.LastReq.FunctionCode == pdu.FunctionCode {
+				req := w.LastReq
+				w.LastReq = nil
+
+				return &WiretapReqResp{
+					Req:  req,
+					Resp: &pdu.ProtocolDataUnit,
+				}, nil
 			}
 		}
 

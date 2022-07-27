@@ -8,7 +8,6 @@ As Modbus RTU is a protocol that allows only for a single master node on the RS4
 
 ## Limitations
 
-* This app is passive and doesn't send any requests to the smartmeter. If the inverter is not running, no requests are sent to the slave (the smartmeter), hence the app won't publish any data.
 * This app has only been tested with my Deye 8kW inverter and only supports the registers read by this model (current wattage and total energy import/export).
 * This app is only intended for the Eastron SDM630 smartmeter. Register numbers will differ between smartmeter manufacturers.
 * This app is designed for PC-like systems (e.g. the Raspberry Pi). If you need something for ESP8266/ESP32, you need to look elsewhere.
@@ -23,12 +22,22 @@ go build
 
 ## Usage
 
-Given that Deye inverters connect the A and B wires to 2 different RJ45 pins, creating a physical wiretap is pretty straightforward.
+Given that Deye inverters connect the A and B wires each to 2 different RJ45 pins, creating a physical wiretap is pretty straightforward.
 
 App usage example (using default options):
 
 ```
 ./eastron_wiretap -port /dev/ttyUSB0 -baudRate 9600 -mqttServer 127.0.01 -topic smartmeter
+```
+
+### Auto-master Mode
+
+Mainly for development!
+
+It is also possible to enable the auto-master mode. If the app hasn't heard the inverter on the network during past 5 seconds, it will request the needed data on its own.
+
+```
+./eastron_wiretap -automaster
 ```
 
 ## Acknowledgements

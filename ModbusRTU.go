@@ -133,3 +133,20 @@ func (m *ModbusRTU) ReadPDU() (*AddressedPDU, error) {
 
 	return pdu, nil
 }
+
+func (m *ModbusRTU) WritePDU(pdu *AddressedPDU) {
+	buffer := make([]byte, len(pdu.Data)+4)
+
+	buffer[0] = pdu.Slave
+	buffer[1] = pdu.FunctionCode
+
+	copy(buffer[2:], pdu.Data)
+
+	var crc crc
+	crc.reset().pushBytes(buffer[:len(buffer)-2])
+
+	buffer[len(buffer)-2] = crc.low
+	buffer[len(buffer)-1] = crc.high
+
+	m.Port.Write(buffer)
+}

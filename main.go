@@ -31,6 +31,8 @@ func main() {
 	baudRatePtr := flag.Int("baudRate", 9600, "Port baud rate")
 	mqttServerPtr := flag.String("mqttServer", "tcp://127.0.0.1:1883", "MQTT server address")
 	topicPtr := flag.String("topic", "smartmeter", "MQTT topic prefix")
+	automasterPtr := flag.Bool("automaster", false, "Automatically become master if no other master is detected")
+	slavePtr := flag.Int("slave", 1, "Slave number")
 
 	flag.Parse()
 
@@ -68,8 +70,13 @@ func main() {
 	*/
 
 	wiretap := ModbusWiretap{
-		RTU:         &modbus,
-		TargetSlave: 1,
+		RTU:             &modbus,
+		TargetSlave:     byte(*slavePtr),
+		LastHeardMaster: time.Now(),
+	}
+
+	if *automasterPtr {
+		go automasterLoop(&modbus, &wiretap)
 	}
 
 	for {
@@ -153,4 +160,43 @@ func connectMqtt(address, topic string) mqtt.Client {
 	c.Publish(topic+"/status", 0, true, "1").Wait()
 
 	return c
+}
+
+func automasterLoop(modbus *ModbusRTU, wiretap *ModbusWiretap) {
+	// The inverter normally asks for data every 0.5 seconds.
+	// Lets ask the Smartmeter every 5 seconds to minimize collision risks.
+
+	for {
+		time.Sleep(5 * time.Second)
+
+		// We haven't seen the inverter during the last 5 seconds
+		if time.Since(wiretap.LastHeardMaster) > 5*time.Second {
+			log.Println("No master around, let's ask ourselves...")
+
+			sendRequest(modbus, wiretap, EastronPhase1Power, 6)
+			time.Sleep(500 * time.Millisecond)
+
+			sendRequest(modbus, wiretap, EastronImportKwh, 4)
+		}
+	}
+}
+
+func sendRequest(modbus *ModbusRTU, wiretap *ModbusWiretap, register, length uint16) {
+	pdu := AddressedPDU{
+		Slave: wiretap.TargetSlave,
+		ProtocolDataUnit: ProtocolDataUnit{
+			FunctionCode: FuncCodeReadInputRegisters,
+			Data: []byte{
+				byte(register >> 8),
+				byte(register & 0xff),
+				byte(length >> 8),
+				byte(length & 0xff),
+			},
+		},
+	}
+
+	// log.Println("Sending request:", &pdu.ProtocolDataUnit)
+
+	wiretap.SetLastReq(&pdu.ProtocolDataUnit)
+	modbus.WritePDU(&pdu)
 }
