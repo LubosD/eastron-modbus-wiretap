@@ -6,6 +6,8 @@ I have a Deye inverter connected to an Eastron SDM630 smartmeter. I wanted to re
 
 As Modbus RTU is a protocol that allows only for a single master node on the RS485 network (i.e. you cannot have multiple devices asking the smartmeter), I decided to wiretap the connection and passively listen for exchanged messages.
 
+The app also provides Home Assistant integration (via MQTT only).
+
 ## Limitations
 
 * This app has only been tested with my Deye 8kW inverter and only supports the registers read by this model (current wattage and total energy import/export).
@@ -27,7 +29,7 @@ Given that Deye inverters connect the A and B wires each to 2 different RJ45 pin
 App usage example (using default options):
 
 ```
-./eastron_wiretap -port /dev/ttyUSB0 -baudRate 9600 -mqttServer 127.0.01 -topic smartmeter
+./eastron_wiretap -port /dev/ttyUSB0 -baudRate 9600 -mqttServer 127.0.0.1 -topic smartmeter
 ```
 
 ### Auto-master Mode
