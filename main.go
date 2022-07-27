@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -37,6 +39,7 @@ func main() {
 	flag.Parse()
 
 	mqttClient := connectMqtt(*mqttServerPtr, *topicPtr)
+	pushHomeAssistantConfig(mqttClient, *topicPtr)
 
 	port, err := serial.Open(&serial.Config{
 		Address:  *portPtr,
@@ -150,16 +153,70 @@ func connectMqtt(address, topic string) mqtt.Client {
 	opts := mqtt.NewClientOptions().AddBroker(address).SetClientID("eastron_wiretap")
 	opts.SetKeepAlive(2 * time.Second)
 	opts.SetPingTimeout(1 * time.Second)
-	opts.SetWill(topic+"/status", "0", 0, true)
+	opts.SetWill(topic+"/status", "offline", 0, true)
 
 	c := mqtt.NewClient(opts)
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		log.Fatalln("Failed to connect to MQTT server:", token.Error())
 	}
 
-	c.Publish(topic+"/status", 0, true, "1").Wait()
+	c.Publish(topic+"/status", 0, true, "online").Wait()
 
 	return c
+}
+
+type HassAutoconfig struct {
+	DeviceClass       string               `json:"dev_cla"`
+	UnitOfMeasurement string               `json:"unit_of_meas"`
+	Name              string               `json:"name"`
+	StatusTopic       string               `json:"stat_t"`
+	AvailabilityTopic string               `json:"avty_t"`
+	UniqueID          string               `json:"uniq_id"`
+	StateClass        string               `json:"stat_cla"`
+	Device            HassAutoconfigDevice `json:"dev"`
+}
+
+type HassAutoconfigDevice struct {
+	IDs  string `json:"ids"`
+	Name string `json:"name"`
+}
+
+func pushHomeAssistantConfig(mqttClient mqtt.Client, topic string) {
+	var autoconf HassAutoconfig
+
+	hostname, _ := os.Hostname()
+
+	autoconf.DeviceClass = "energy"
+	autoconf.StateClass = "measurement"
+	autoconf.UnitOfMeasurement = "kWh"
+	autoconf.Name = "energy_imported"
+	autoconf.AvailabilityTopic = topic + "/status"
+	autoconf.StatusTopic = topic + "/energy_imported"
+	autoconf.UniqueID = fmt.Sprint(topic, ".", hostname, ".", autoconf.Name)
+	autoconf.Device.IDs = hostname
+	autoconf.Device.Name = hostname
+
+	jsonBytes, _ := json.Marshal(&autoconf)
+	mqttClient.Publish("homeassistant/sensor/smartmeter_"+hostname+"/energy_imported/config", 0, true, string(jsonBytes)).Wait()
+
+	autoconf.Name = "energy_exported"
+	autoconf.StatusTopic = topic + "/energy_exported"
+	autoconf.UniqueID = fmt.Sprint(topic, ".", hostname, ".", autoconf.Name)
+
+	jsonBytes, _ = json.Marshal(&autoconf)
+	mqttClient.Publish("homeassistant/sensor/smartmeter_"+hostname+"/energy_exported/config", 0, true, string(jsonBytes)).Wait()
+
+	autoconf.DeviceClass = "power"
+	autoconf.UnitOfMeasurement = "W"
+
+	for i := 1; i <= 3; i++ {
+		autoconf.Name = fmt.Sprint("power_phase", i)
+		autoconf.StatusTopic = fmt.Sprint(topic, "/power_l", i)
+		autoconf.UniqueID = fmt.Sprint(topic, ".", hostname, ".", autoconf.Name)
+
+		jsonBytes, _ = json.Marshal(&autoconf)
+		mqttClient.Publish("homeassistant/sensor/smartmeter_"+hostname+"/"+autoconf.Name+"/config", 0, true, string(jsonBytes)).Wait()
+	}
 }
 
 func automasterLoop(modbus *ModbusRTU, wiretap *ModbusWiretap) {
