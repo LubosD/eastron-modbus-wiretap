@@ -154,13 +154,14 @@ func connectMqtt(address, topic string) mqtt.Client {
 	opts.SetKeepAlive(2 * time.Second)
 	opts.SetPingTimeout(1 * time.Second)
 	opts.SetWill(topic+"/status", "offline", 0, true)
+	opts.OnConnect = func(client mqtt.Client) {
+		client.Publish(topic+"/status", 0, true, "online").Wait()
+	}
 
 	c := mqtt.NewClient(opts)
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		log.Fatalln("Failed to connect to MQTT server:", token.Error())
 	}
-
-	c.Publish(topic+"/status", 0, true, "online").Wait()
 
 	return c
 }
@@ -187,7 +188,7 @@ func pushHomeAssistantConfig(mqttClient mqtt.Client, topic string) {
 	hostname, _ := os.Hostname()
 
 	autoconf.DeviceClass = "energy"
-	autoconf.StateClass = "measurement"
+	autoconf.StateClass = "total_increasing"
 	autoconf.UnitOfMeasurement = "kWh"
 	autoconf.Name = "energy_imported"
 	autoconf.AvailabilityTopic = topic + "/status"
