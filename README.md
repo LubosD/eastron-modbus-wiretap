@@ -42,6 +42,10 @@ It is also possible to enable the auto-master mode. If the app hasn't heard the 
 ./eastron_wiretap -automaster
 ```
 
+## systemd service
+
+See [easton_wiretap.service](easton_wiretap.service) for an example systemd service. Adapt the arguments to your needs.
+
 ## Acknowledgements
 
 This app uses some utility code written by Quoc-Viet Nguyen taken from [goburrow/modbus](https://github.com/goburrow/modbus).
