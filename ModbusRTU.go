@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/goburrow/serial"
@@ -44,6 +45,11 @@ func (m *ModbusRTU) readPump() {
 		num, err := m.Port.Read(buffer)
 
 		if err != nil {
+			if val, ok := err.(syscall.Errno); ok && (val.Temporary() || val.Timeout()) {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			}
+
 			log.Println("ModbusRTU readPump: read error: " + err.Error())
 			break
 		}
