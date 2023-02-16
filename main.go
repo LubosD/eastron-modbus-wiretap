@@ -209,7 +209,7 @@ func pushHomeAssistantConfig(mqttClient mqtt.Client, topic string) {
 
 	autoconf.DeviceClass = "power"
 	autoconf.UnitOfMeasurement = "W"
-	autoconf.StateClass = ""
+	autoconf.StateClass = "measurement"
 
 	for i := 1; i <= 3; i++ {
 		autoconf.Name = fmt.Sprint("power_phase", i)
