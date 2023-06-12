@@ -80,6 +80,8 @@ func main() {
 
 	if *automasterPtr {
 		go automasterLoop(&modbus, &wiretap)
+	} else {
+		go aliveCheck(&wiretap)
 	}
 
 	for {
@@ -236,6 +238,18 @@ func automasterLoop(modbus *ModbusRTU, wiretap *ModbusWiretap) {
 			time.Sleep(500 * time.Millisecond)
 
 			sendRequest(modbus, wiretap, EastronImportKwh, 4)
+		}
+	}
+}
+
+func aliveCheck(wiretap *ModbusWiretap) {
+	for {
+		time.Sleep(5 * time.Second)
+
+		// Crash the process if we're not receiving any messages.
+		// This may actually fix problems with the USB dongle driver on RPi.
+		if time.Since(wiretap.LastHeardMaster) > time.Minute {
+			log.Fatalln("No packets received within past 1 minute!")
 		}
 	}
 }
