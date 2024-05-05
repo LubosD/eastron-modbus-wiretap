@@ -26,6 +26,8 @@ const (
 	EastronExportKwh uint16 = 0x4a
 )
 
+var lastImportKwh, lastExportkWh float32
+
 func main() {
 	signal.Ignore(syscall.SIGHUP)
 
@@ -135,11 +137,23 @@ func handleRegisterValue(register uint16, value float32, mqttClient mqtt.Client,
 		log.Println("L3 power [W]:", value)
 		fullTopicName = topic + "/power_l3"
 	case EastronImportKwh:
+		if value < lastImportKwh {
+			log.Printf("ERROR: new import kWh (%f) < previous value (%f)\n", value, lastImportKwh)
+			return
+		}
+
 		log.Println("Energy imported [kWh]:", value)
 		fullTopicName = topic + "/energy_imported"
+		lastImportKwh = value
 	case EastronExportKwh:
+		if value < lastExportkWh {
+			log.Printf("ERROR: new export kWh (%f) < previous value (%f)\n", value, lastExportkWh)
+			return
+		}
+
 		log.Println("Energy exported [kWh]:", value)
 		fullTopicName = topic + "/energy_exported"
+		lastExportkWh = value
 	}
 
 	if fullTopicName != "" {
